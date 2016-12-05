@@ -33,12 +33,16 @@
                 <StackPanel Grid.Column="0">
                     <TextBlock Text="Manufacturer:" TextAlignment="Right" Margin="5" />
                     <TextBlock Text="Model:" TextAlignment="Right" Margin="5" />
+                    <TextBlock Text="Resolution:" TextAlignment="Right" Margin="5" />
+                    <TextBlock Text="RAM:" TextAlignment="Right" Margin="5" />
                 </StackPanel>
                 <StackPanel Grid.Column="1">
-                    <TextBlock x:Name="lblManufacturer" Margin="5" />
-                    <TextBlock x:Name="lblModel" Margin="5" />
+                    <TextBlock x:Name="lblManufacturer" Text="{Binding Path=ManufacturerName}" Margin="5" />
+                    <TextBlock x:Name="lblModel" Text="{Binding Path=ModelName}" Margin="5" />
+                    <TextBlock x:Name="lblResolution" Text="{Binding Path=Resolution}" Margin="5" />
+                    <TextBlock x:Name="lblRAM" Text="{Binding Path=RAM}" Margin="5" />
                 </StackPanel>
-                <Image x:Name="imgDevice" Grid.Column="2" Width="100" Height="200" Margin="5" Stretch="None" />
+                <Image x:Name="imgDevice" Grid.Column="2" Width="100" Height="200" Source="{Binding Path=Image}"  Margin="5" Stretch="None" />
             </Grid>
         </GroupBox>
         <Button x:Name="btnRefreshDevices" Grid.Column="0" Grid.Row="1" Height="30" Width="150" Content="_Refresh Devices" Margin="10" Click="btnRefreshDevices_Click" />
@@ -210,7 +214,7 @@
         </TabControl>
         <StackPanel Grid.Column="2" Grid.Row="0" Grid.RowSpan="3" Margin="10,0,0,0">
             <GroupBox Header="Console Output">
-                <TextBox x:Name="txtOutput" Width="500" Height="650" IsReadOnly="True" ScrollViewer.VerticalScrollBarVisibility="Visible" Margin="5" FontFamily="Lucida Console" />
+                <TextBox x:Name="txtOutput" Width="500" Height="650" IsReadOnly="True" ScrollViewer.VerticalScrollBarVisibility="Visible" Margin="5" FontFamily="Lucida Console" TextWrapping="Wrap" />
             </GroupBox>
             <Button x:Name="btnClearOutput" Grid.Row="3" Grid.Column="2" Height="30" Width="125" Content="_Clear" Margin="10" Click="btnClearOutput_Click" />
         </StackPanel>
