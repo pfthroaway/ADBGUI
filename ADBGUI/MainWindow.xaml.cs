@@ -1,8 +1,12 @@
-﻿using RegawMOD.Android;
+﻿using ADBGUI.Classes;
+using ADBGUI.Classes.Devices;
+using Extensions;
+using RegawMOD.Android;
 using System;
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.IO;
+using System.Linq;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
@@ -10,16 +14,13 @@ using System.Windows.Forms;
 
 namespace ADBGUI
 {
-    /// <summary>
-    /// Interaction logic for MainWindow.xaml
-    /// </summary>
-    public partial class MainWindow : Window
+    /// <summary>Interaction logic for MainWindow.xaml</summary>
+    public partial class MainWindow
     {
-        private AndroidController android;
-        private Device device;
-        private List<ConnectedDevice> connectedDevices = new List<ConnectedDevice>();
-        private ConnectedDevice selectedDevice = new ConnectedDevice();
-        private string nl = Environment.NewLine;
+        private AndroidController _android;
+        private Device _device;
+        private readonly List<ConnectedDevice> _connectedDevices = new List<ConnectedDevice>();
+        private ConnectedDevice _selectedDevice = new ConnectedDevice();
 
         #region Data-Binding
 
@@ -39,16 +40,16 @@ namespace ADBGUI
         /// </summary>
         private void ClearSelection()
         {
-            lstDevices.UnselectAll();
-            imgDevice.Source = AppState.AllSupportedDevices.Find(device => device.ModelName == "Unknown").Image;
-            selectedDevice = new ConnectedDevice();
+            LstDevices.UnselectAll();
+            ImgDevice.Source = AppState.AllSupportedDevices.Find(connectedDevice => connectedDevice.ModelName == "Unknown").Image;
+            _selectedDevice = new ConnectedDevice();
         }
 
         private void RemoveSelected()
         {
-            connectedDevices.RemoveAt(lstDevices.SelectedIndex);
-            lstDevices.Items.RemoveAt(lstDevices.SelectedIndex);
-            DisableADB();
+            _connectedDevices.RemoveAt(LstDevices.SelectedIndex);
+            LstDevices.Items.RemoveAt(LstDevices.SelectedIndex);
+            DisableAdb();
             DisableFastboot();
             ClearSelection();
         }
@@ -57,15 +58,9 @@ namespace ADBGUI
         /// Adds text to the txtOutput TextBox.
         /// </summary>
         /// <param name="newText">Text to be added.</param>
-        private void AddTextTT(string newText)
+        private void AddTextTt(string newText)
         {
-            if (newText.StartsWith("Android Debug Bridge"))
-                txtOutput.Text += nl + nl + "Invalid command.";
-            else
-                txtOutput.Text += nl + nl + newText;
-            txtOutput.Focus();
-            txtOutput.CaretIndex = txtOutput.Text.Length;
-            txtOutput.ScrollToEnd();
+            Functions.AddTextToTextBox(TxtOutput, newText.StartsWith("Android Debug Bridge") ? "Invalid command." : newText);
         }
 
         /// <summary>
@@ -73,11 +68,10 @@ namespace ADBGUI
         /// </summary>
         private void UpdateDeviceList()
         {
-            string deviceList, adbDevices;
-            deviceList = Adb.ExecuteAdbCommand(Adb.FormAdbCommand("devices"));
-            connectedDevices.Clear();
-            lstDevices.Items.Clear();
-            DisableADB();
+            string deviceList = Adb.ExecuteAdbCommand(Adb.FormAdbCommand("devices"));
+            _connectedDevices.Clear();
+            LstDevices.Items.Clear();
+            DisableAdb();
             DisableFastboot();
 
             if (deviceList.Contains("device") || deviceList.Contains("recovery") || deviceList.Contains("bootloader"))
@@ -85,102 +79,104 @@ namespace ADBGUI
                 while (deviceList.Contains(" & "))
                     deviceList.Remove(0, deviceList.IndexOf(" & ") + 1);
                 StringReader s = new StringReader(deviceList);
-                string line;
 
                 while (s.Peek() != -1)
                 {
-                    line = s.ReadLine();
-                    if (line.StartsWith("List") || line.StartsWith(Environment.NewLine) || line.Trim() == "")
+                    string line = s.ReadLine();
+                    if (line != null && (line.StartsWith("List") || line.StartsWith(Environment.NewLine) || line.Trim() == ""))
                     {
                         //do nothing
                     }
                     else
                     {
-                        adbDevices = line.Substring(0, line.IndexOf("	"));
-                        line = line.Substring(line.IndexOf("	") + 1);
-
-                        DeviceState currState;
-
-                        switch (line.ToUpper())
-
+                        if (line != null)
                         {
-                            case "DEVICE":
-                            case "ONLINE":
-                                currState = DeviceState.ONLINE;
-                                break;
+                            string adbDevices = line.Substring(0, line.IndexOf("	"));
+                            line = line.Substring(line.IndexOf("	") + 1);
 
-                            case "RECOVERY":
-                                currState = DeviceState.RECOVERY;
-                                break;
+                            DeviceState currState;
 
-                            case "OFFLINE":
-                                currState = DeviceState.OFFLINE;
-                                break;
+                            switch (line.ToUpper())
 
-                            case "SIDELOAD":
-                                currState = DeviceState.SIDELOAD;
-                                break;
+                            {
+                                case "DEVICE":
+                                case "ONLINE":
+                                    currState = DeviceState.ONLINE;
+                                    break;
 
-                            case "UNAUTHORIZED":
-                                currState = DeviceState.UNAUTHORIZED;
-                                break;
+                                case "RECOVERY":
+                                    currState = DeviceState.RECOVERY;
+                                    break;
 
-                            case "FASTBOOT":
-                                currState = DeviceState.FASTBOOT;
-                                break;
+                                case "OFFLINE":
+                                    currState = DeviceState.OFFLINE;
+                                    break;
 
-                            default:
-                                currState = DeviceState.UNKNOWN;
-                                break;
+                                case "SIDELOAD":
+                                    currState = DeviceState.SIDELOAD;
+                                    break;
+
+                                case "UNAUTHORIZED":
+                                    currState = DeviceState.UNAUTHORIZED;
+                                    break;
+
+                                case "FASTBOOT":
+                                    currState = DeviceState.FASTBOOT;
+                                    break;
+
+                                default:
+                                    currState = DeviceState.UNKNOWN;
+                                    break;
+                            }
+
+                            ConnectedDevice newDevice = new ConnectedDevice(adbDevices, currState);
+                            _connectedDevices.Add(newDevice);
                         }
-
-                        ConnectedDevice newDevice = new ConnectedDevice(adbDevices, currState);
-                        connectedDevices.Add(newDevice);
                     }
                 }
             }
 
             deviceList = Fastboot.ExecuteFastbootCommand(Fastboot.FormFastbootCommand("devices"));
-            string fastbootDevices;
             if (deviceList.Length > 0)
             {
                 StringReader s = new StringReader(deviceList);
-                string line;
 
                 while (s.Peek() != -1)
                 {
-                    line = s.ReadLine();
-                    if (line.StartsWith("List") || line.StartsWith("	") || line.Trim() == "")
+                    string line = s.ReadLine();
+                    if (line == null || (!line.StartsWith("List") && !line.StartsWith("	") && line.Trim() != ""))
                     {
-                        //do nothing
+                        if (line != null && line.IndexOf("	") != -1)
+                        {
+                            line = line.Substring(0, line.IndexOf("	"));
+                            string fastbootDevices = line;
+                            ConnectedDevice newDevice = new ConnectedDevice(fastbootDevices, DeviceState.FASTBOOT);
+                            _connectedDevices.Add(newDevice);
+                        }
                     }
                     else
                     {
-                        if (line.IndexOf("	") != -1)
-                        {
-                            line = line.Substring(0, line.IndexOf("	"));
-                            fastbootDevices = line;
-                            ConnectedDevice newDevice = new ConnectedDevice(fastbootDevices, DeviceState.FASTBOOT);
-                            connectedDevices.Add(newDevice);
-                        }
+                        //do nothing
                     }
                 }
             }
 
-            for (int i = 0; i < connectedDevices.Count; i++)
-            {
-                lstDevices.Items.Add(connectedDevices[i].SerialNumber + " - " + connectedDevices[i].ConnectionStatus);
-            }
+            foreach (ConnectedDevice connectedDevice in _connectedDevices)
+                LstDevices.Items.Add($"{connectedDevice.SerialNumber} - {connectedDevice.ConnectionStatus}");
         }
 
         /// <summary>
         /// Displays the device info next to its picture.
         /// </summary>
         /// <param name="modelNum">Device Model Number</param>
-        private void displayDeviceInfo(string modelNum)
+        private void DisplayDeviceInfo(string modelNum)
         {
-            selectedDevice = new ConnectedDevice(device.SerialNumber, device.State, device.HasRoot, device.HasRoot, AppState.AllSupportedDevices.Find(device => device.Codenames.Contains(modelNum)));
-            DataContext = selectedDevice.DeviceInfo;
+            List<SupportedDevice> matchingDevices = AppState.AllSupportedDevices.Where(connDevice => connDevice.Codenames.Contains(modelNum)).ToList();
+
+            _selectedDevice = matchingDevices.Count == 1
+                ? new ConnectedDevice(_device.SerialNumber, _device.State, _device.HasRoot, _device.HasRoot, AppState.AllSupportedDevices.Find(connectedDevice => connectedDevice.Codenames.Contains(modelNum)))
+                : new ConnectedDevice(_device.SerialNumber, _device.State, _device.HasRoot, _device.HasRoot, AppState.AllSupportedDevices.Find(connectedDevice => connectedDevice.ModelName == "Unknown"));
+            DataContext = _selectedDevice.DeviceInfo;
         }
 
         #endregion Display Manipulation
@@ -189,72 +185,74 @@ namespace ADBGUI
 
         private void btnADBRebootSystem_Click(object sender, RoutedEventArgs e)
         {
-            if (IsDeviceConnected(selectedDevice.SerialNumber))
+            if (IsDeviceConnected(_selectedDevice.SerialNumber))
             {
-                device.Reboot();
-                AddTextTT("Rebooting " + selectedDevice.SerialNumber + " to system...");
+                _device.Reboot();
+                AddTextTt($"Rebooting {_selectedDevice.SerialNumber} to system...");
                 RemoveSelected();
             }
             else
-                System.Windows.MessageBox.Show("This device appears to no longer be connected. Please ensure this device's connection, then click 'Refresh Devices'.", "ADB GUI", MessageBoxButton.OK);
+                AppState.DisplayNotification("This device appears to no longer be connected. Please ensure this device's connection, then click 'Refresh Devices'.", "ADB GUI", this);
         }
 
         private void btnADBRebootBootloader_Click(object sender, RoutedEventArgs e)
         {
-            if (IsDeviceConnected(selectedDevice.SerialNumber))
+            if (IsDeviceConnected(_selectedDevice.SerialNumber))
             {
-                device.RebootBootloader();
-                AddTextTT("Rebooting " + selectedDevice.SerialNumber + " to bootloader...");
+                _device.RebootBootloader();
+                AddTextTt($"Rebooting {_selectedDevice.SerialNumber} to bootloader...");
                 RemoveSelected();
             }
             else
-                System.Windows.MessageBox.Show("This device appears to no longer be connected. Please ensure this device's connection, then click 'Refresh Devices'.", "ADB GUI", MessageBoxButton.OK);
+                AppState.DisplayNotification("This device appears to no longer be connected. Please ensure this device's connection, then click 'Refresh Devices'.", "ADB GUI", this);
         }
 
         private void btnADBRebootRecovery_Click(object sender, RoutedEventArgs e)
         {
-            if (IsDeviceConnected(selectedDevice.SerialNumber))
+            if (IsDeviceConnected(_selectedDevice.SerialNumber))
             {
-                device.RebootRecovery();
-                AddTextTT("Rebooting " + selectedDevice.SerialNumber + " to recovery...");
+                _device.RebootRecovery();
+                AddTextTt($"Rebooting {_selectedDevice.SerialNumber} to recovery...");
                 RemoveSelected();
             }
             else
-                System.Windows.MessageBox.Show("This device appears to no longer be connected. Please ensure this device's connection, then click 'Refresh Devices'.", "ADB GUI", MessageBoxButton.OK);
+                AppState.DisplayNotification("This device appears to no longer be connected. Please ensure this device's connection, then click 'Refresh Devices'.", "ADB GUI", this);
         }
 
         private async void btnADBCommand_Click(object sender, RoutedEventArgs e)
         {
-            Task<String> myTask = RunADBCommand();
+            Task<String> myTask = RunAdbCommand();
             string runCmd = await myTask;
-            AddTextTT(runCmd);
+            AddTextTt(runCmd);
+            if (runCmd == "Please use the ADB shell commands textbox.")
+                TxtAdbShellCommand.Focus();
         }
 
         private void btnADBShellCommand_Click(object sender, RoutedEventArgs e)
         {
-            string adbCmd = txtADBShellCommand.Text;
+            string adbCmd = TxtAdbShellCommand.Text;
             string parameters = "";
-            bool su = chkSU.IsChecked.Value;
+            bool su = ChkSu.IsChecked != null && ChkSu.IsChecked.Value;
 
             if (adbCmd.Contains(" "))
             {
-                parameters = (char)34 + adbCmd.Substring(adbCmd.IndexOf(" ") + 1) + (char)34;
+                parameters = $"\"{adbCmd.Substring(adbCmd.IndexOf(" ") + 1)}\"";
                 adbCmd = adbCmd.Substring(0, adbCmd.IndexOf(" "));
             }
 
             try
             {
-                AddTextTT(Adb.ExecuteAdbCommand(Adb.FormAdbShellCommand(device, su, adbCmd, parameters)));
+                AddTextTt(Adb.ExecuteAdbCommand(Adb.FormAdbShellCommand(_device, su, adbCmd, parameters)));
             }
             catch (Exception ex)
             {
-                System.Windows.MessageBox.Show(ex.Message, "ADB GUI", MessageBoxButton.OK);
+                AppState.DisplayNotification(ex.Message, "ADB GUI", this);
             }
         }
 
         private void btnADBRemount_Click(object sender, RoutedEventArgs e)
         {
-            AddTextTT(Adb.ExecuteAdbCommand(Adb.FormAdbCommand(device, "remount", "")));
+            AddTextTt(Adb.ExecuteAdbCommand(Adb.FormAdbCommand(_device, "remount", "")));
         }
 
         #endregion ADB Button-Click Methods
@@ -269,7 +267,7 @@ namespace ADBGUI
 
         private void btnClearOutput_Click(object sender, RoutedEventArgs e)
         {
-            txtOutput.Text = "";
+            TxtOutput.Text = "";
         }
 
         #endregion Window Button-Click Methods
@@ -282,15 +280,15 @@ namespace ADBGUI
         /// <returns></returns>
         private async Task<string> RunFastbootCommand()
         {
-            string fbCmd = txtFastbootCommand.Text;
+            string fbCmd = TxtFastbootCommand.Text;
             string parameters = "";
 
             if (fbCmd.Contains(" "))
             {
-                parameters = (char)34 + fbCmd.Substring(fbCmd.IndexOf(" ") + 1) + (char)34;
+                parameters = $"\"{fbCmd.Substring(fbCmd.IndexOf(" ") + 1)}\"";
                 fbCmd = fbCmd.Substring(0, fbCmd.IndexOf(" "));
             }
-            Task<string> cmd = Task.Factory.StartNew(() => { return Fastboot.ExecuteFastbootCommand(Fastboot.FormFastbootCommand(device, fbCmd, parameters)); });
+            Task<string> cmd = Task.Factory.StartNew(() => Fastboot.ExecuteFastbootCommand(Fastboot.FormFastbootCommand(_device, fbCmd, parameters)));
 
             string result = await cmd;
             return result;
@@ -300,41 +298,45 @@ namespace ADBGUI
         /// Runs a custom ADB command.
         /// </summary>
         /// <returns>Returns text result of command.</returns>
-        private async Task<string> RunADBCommand()
+        private async Task<string> RunAdbCommand()
         {
-            string adbCmd = txtADBCommand.Text;
+            string adbCmd = TxtAdbCommand.Text;
             string parameters = "";
 
-            if (adbCmd.Contains(" "))
+            if (adbCmd != "shell")
             {
-                parameters = (char)34 + adbCmd.Substring(adbCmd.IndexOf(" ") + 1) + (char)34;
-                adbCmd = adbCmd.Substring(0, adbCmd.IndexOf(" "));
-                if (adbCmd == "push")
+                if (adbCmd.Contains(" "))
                 {
-                    parameters = parameters.Insert(parameters.IndexOf(" /"), ((char)34).ToString());
-                    parameters = parameters.Insert(parameters.IndexOf("/"), ((char)34).ToString());
+                    parameters = $"\"{adbCmd.Substring(adbCmd.IndexOf(" ", StringComparison.Ordinal) + 1)}\"";
+                    adbCmd = adbCmd.Substring(0, adbCmd.IndexOf(" ", StringComparison.Ordinal));
+                    if (adbCmd == "push")
+                    {
+                        parameters = parameters.Insert(parameters.IndexOf(" /", StringComparison.Ordinal), "\"");
+                        parameters = parameters.Insert(parameters.IndexOf("/", StringComparison.Ordinal), "\"");
+                    }
+                    else if (adbCmd == "logcat")
+                    {
+                        parameters = parameters.Substring(1);
+                        parameters = parameters.Substring(0, parameters.Length - 1);
+                    }
                 }
-                else if (adbCmd == "logcat")
-                {
-                    parameters = parameters.Substring(1);
-                    parameters = parameters.Substring(0, parameters.Length - 1);
-                }
-            }
 
-            AddTextTT(nl + "adb " + adbCmd + " " + parameters + nl);
-            Task<string> cmd = Task.Factory.StartNew(() => { return Adb.ExecuteAdbCommand(Adb.FormAdbCommand(device, adbCmd, parameters)); });
-            string result = await cmd;
-            return result;
+                AddTextTt($"\nadb {adbCmd} {parameters}\n");
+                Task<string> cmd = Task.Factory.StartNew(() => Adb.ExecuteAdbCommand(Adb.FormAdbCommand(_device, adbCmd, parameters)));
+                string result = await cmd;
+                return result;
+            }
+            return "Please use the ADB shell commands textbox.";
         }
 
         /// <summary>
         /// Reboots to the RUU for custom zip flashes.
         /// </summary>
-        private void RebootRUU()
+        private void RebootRuu()
         {
-            FastbootCommand fbCmd = Fastboot.FormFastbootCommand("-s " + selectedDevice.SerialNumber + " oem rebootRUU");
-            AddTextTT(Fastboot.ExecuteFastbootCommand(fbCmd));
-            System.Windows.MessageBox.Show("Your phone will now load the Rom Update Utility which, among other things, allows flashing of splash images and custom zip files. When the RUU has loaded on your device, press OK.", "ADB GUI", MessageBoxButton.OK);
+            FastbootCommand fbCmd = Fastboot.FormFastbootCommand($"-s {_selectedDevice.SerialNumber} oem rebootRUU");
+            AddTextTt(Fastboot.ExecuteFastbootCommand(fbCmd));
+            AppState.DisplayNotification("Your phone will now load the Rom Update Utility which, among other things, allows flashing of splash images and custom zip files. When the RUU has loaded on your device, press OK.", "ADB GUI", this);
         }
 
         #endregion Custom Commands
@@ -343,109 +345,113 @@ namespace ADBGUI
 
         private void btnFastbootRebootBootloader_Click(object sender, RoutedEventArgs e)
         {
-            if (IsDeviceConnected(selectedDevice.SerialNumber))
+            if (IsDeviceConnected(_selectedDevice.SerialNumber))
             {
-                if (lstDevices.SelectedIndex >= 0)
+                if (LstDevices.SelectedIndex >= 0)
                 {
-                    FastbootCommand fbCmd = Fastboot.FormFastbootCommand("-s " + selectedDevice.SerialNumber + " reboot-bootloader");
-                    AddTextTT(Fastboot.ExecuteFastbootCommand(fbCmd));
-                    AddTextTT("Rebooting " + selectedDevice.SerialNumber + " to bootloader...");
+                    FastbootCommand fbCmd = Fastboot.FormFastbootCommand($"-s {_selectedDevice.SerialNumber} reboot-bootloader");
+                    AddTextTt(Fastboot.ExecuteFastbootCommand(fbCmd));
+                    AddTextTt($"Rebooting {_selectedDevice.SerialNumber} to bootloader...");
                     RemoveSelected();
                 }
                 else
-                    System.Windows.MessageBox.Show("Please select a device to reboot.", "ADB GUI", MessageBoxButton.OK);
+                    AppState.DisplayNotification("Please select a device to reboot.", "ADB GUI", this);
             }
             else
-                System.Windows.MessageBox.Show("This device appears to no longer be connected. Please ensure this device's connection, then click 'Refresh Devices'.", "ADB GUI", MessageBoxButton.OK);
+                AppState.DisplayNotification("This device appears to no longer be connected. Please ensure this device's connection, then click 'Refresh Devices'.", "ADB GUI", this);
         }
 
         private void btnFastbootRebootSystem_Click(object sender, RoutedEventArgs e)
         {
-            if (IsDeviceConnected(selectedDevice.SerialNumber))
+            if (IsDeviceConnected(_selectedDevice.SerialNumber))
             {
-                device.FastbootReboot();
-                AddTextTT("Rebooting " + selectedDevice.SerialNumber + " to system...");
+                _device.FastbootReboot();
+                AddTextTt($"Rebooting {_selectedDevice.SerialNumber} to system...");
                 RemoveSelected();
             }
             else
-                System.Windows.MessageBox.Show("This device appears to no longer be connected. Please ensure this device's connection, then click 'Refresh Devices'.", "ADB GUI", MessageBoxButton.OK);
+                AppState.DisplayNotification("This device appears to no longer be connected. Please ensure this device's connection, then click 'Refresh Devices'.", "ADB GUI", this);
         }
 
         private async void btnFastbootCommand_Click(object sender, RoutedEventArgs e)
         {
             Task<String> myTask = RunFastbootCommand();
             string runCmd = await myTask;
-            AddTextTT(runCmd);
+            AddTextTt(runCmd);
         }
 
         private void btnBrowseFlashRecovery_Click(object sender, RoutedEventArgs e)
         {
-            OpenFileDialog recoveryImage = new OpenFileDialog();
-            recoveryImage.Title = "Please select the recovery image...";
-            recoveryImage.Multiselect = false;
-            recoveryImage.InitialDirectory = Directory.GetCurrentDirectory();
-            recoveryImage.Filter = "IMG files (*.img)|*.img|All files (*.*)|*.*";
+            OpenFileDialog recoveryImage = new OpenFileDialog
+            {
+                Title = @"Please select the recovery image...",
+                Multiselect = false,
+                InitialDirectory = Directory.GetCurrentDirectory(),
+                Filter = @"IMG files (*.img)|*.img|All files (*.*)|*.*"
+            };
             recoveryImage.ShowDialog();
             if (DialogResult.HasValue)
-                txtFlashRecovery.Text = recoveryImage.FileName;
+                TxtFlashRecovery.Text = recoveryImage.FileName;
         }
 
         private void btnFlashRecovery_Click(object sender, RoutedEventArgs e)
         {
-            if (IsDeviceConnected(selectedDevice.SerialNumber))
+            if (IsDeviceConnected(_selectedDevice.SerialNumber))
             {
-                if (File.Exists(txtFlashRecovery.Text))
+                if (File.Exists(TxtFlashRecovery.Text))
                 {
-                    if (lstDevices.SelectedIndex >= 0)
+                    if (LstDevices.SelectedIndex >= 0)
                     {
-                        FastbootCommand fbCmd = Fastboot.FormFastbootCommand("-s " + selectedDevice.SerialNumber + " flash recovery " + (char)34 + txtFlashRecovery.Text + (char)34);
-                        AddTextTT(Fastboot.ExecuteFastbootCommand(fbCmd) + nl);
-                        AddTextTT(Fastboot.ExecuteFastbootCommand(fbCmd) + nl);
-                        AddTextTT(Fastboot.ExecuteFastbootCommand(fbCmd) + nl);
+                        FastbootCommand fbCmd = Fastboot.FormFastbootCommand($"-s {_selectedDevice.SerialNumber} flash recovery \"{TxtFlashRecovery.Text}\"");
+                        AddTextTt($"Fastboot.ExecuteFastbootCommand({fbCmd})\n");
+                        AddTextTt($"Fastboot.ExecuteFastbootCommand({fbCmd})\n");
+                        AddTextTt($"Fastboot.ExecuteFastbootCommand({fbCmd})\n");
                     }
                 }
                 else
-                    System.Windows.MessageBox.Show("The file at " + txtFlashRecovery.Text + " does not appear to exist.", "ADB GUI", MessageBoxButton.OK);
+                    AppState.DisplayNotification($"The file at {TxtFlashRecovery.Text} does not appear to exist.", "ADB GUI", this);
             }
             else
-                System.Windows.MessageBox.Show("This device appears to no longer be connected. Please ensure this device's connection, then click 'Refresh Devices'.", "ADB GUI", MessageBoxButton.OK);
+                AppState.DisplayNotification("This device appears to no longer be connected. Please ensure this device's connection, then click 'Refresh Devices'.", "ADB GUI", this);
         }
 
         private void btnBrowseCustomZip_Click(object sender, RoutedEventArgs e)
         {
-            OpenFileDialog customZip = new OpenFileDialog();
-            customZip.Title = "Please select the recovery image...";
-            customZip.SupportMultiDottedExtensions = true;
-            customZip.Multiselect = false;
-            customZip.InitialDirectory = Directory.GetCurrentDirectory();
-            customZip.Filter = "Zip files (*.zip)|*.zip|All files (*.*)|*.*";
+            OpenFileDialog customZip = new OpenFileDialog
+            {
+                Title = @"Please select the recovery image...",
+                SupportMultiDottedExtensions = true,
+                Multiselect = false,
+                InitialDirectory = Directory.GetCurrentDirectory(),
+                Filter = @"Zip files (*.zip)|*.zip|All files (*.*)|*.*"
+            };
             customZip.ShowDialog();
             if (DialogResult.HasValue)
-                txtFlashCustomZip.Text = customZip.FileName;
+                TxtFlashCustomZip.Text = customZip.FileName;
         }
 
         private void btnFlashCustomZip_Click(object sender, RoutedEventArgs e)
         {
-            string zipLoc = txtFlashCustomZip.Text;
+            string zipLoc = TxtFlashCustomZip.Text;
 
-            if (IsDeviceConnected(selectedDevice.SerialNumber))
+            if (IsDeviceConnected(_selectedDevice.SerialNumber))
             {
-                RebootRUU();
+                RebootRuu();
                 if (File.Exists(zipLoc))
                 {
-                    if (lstDevices.SelectedIndex >= 0)
+                    if (LstDevices.SelectedIndex >= 0)
                     {
-                        FastbootCommand fbCmd = Fastboot.FormFastbootCommand("-s " + selectedDevice.SerialNumber + " flash zip " + zipLoc);
-                        AddTextTT(Fastboot.ExecuteFastbootCommand(fbCmd) + nl);
-                        AddTextTT(Fastboot.ExecuteFastbootCommand(fbCmd) + nl);
-                        AddTextTT(Fastboot.ExecuteFastbootCommand(fbCmd) + nl);
+                        FastbootCommand fbCmd = Fastboot.FormFastbootCommand($"-s {_selectedDevice.SerialNumber} flash zip {zipLoc}");
+                        AddTextTt($"Fastboot.ExecuteFastbootCommand({fbCmd})\n");
+                        AddTextTt($"Fastboot.ExecuteFastbootCommand({fbCmd})\n");
+                        AddTextTt($"Fastboot.ExecuteFastbootCommand({fbCmd})\n");
                     }
                 }
                 else
-                    System.Windows.MessageBox.Show("The file at " + zipLoc + " does not appear to exist.", "ADB GUI", MessageBoxButton.OK);
+                    AppState.DisplayNotification($"The file at {zipLoc} does not appear to exist.", "ADB GUI", this);
             }
             else
-                System.Windows.MessageBox.Show("This device appears to no longer be connected. Please ensure this device's connection, then click 'Refresh Devices'.", "ADB GUI", MessageBoxButton.OK);
+                AppState.DisplayNotification("This device appears to no longer be connected. Please ensure this device's connection, then click 'Refresh Devices'.", "ADB GUI", this);
         }
 
         #endregion Fastboot Button-Click Methods
@@ -454,41 +460,43 @@ namespace ADBGUI
 
         private void btnBrowsePushFile_Click(object sender, RoutedEventArgs e)
         {
-            OpenFileDialog pushFile = new OpenFileDialog();
-            pushFile.Title = "Please select the file to push to your device...";
-            pushFile.SupportMultiDottedExtensions = true;
-            pushFile.Multiselect = false;
-            pushFile.InitialDirectory = Directory.GetCurrentDirectory();
+            OpenFileDialog pushFile = new OpenFileDialog
+            {
+                Title = @"Please select the file to push to your device...",
+                SupportMultiDottedExtensions = true,
+                Multiselect = false,
+                InitialDirectory = Directory.GetCurrentDirectory()
+            };
             pushFile.ShowDialog();
             if (DialogResult.HasValue)
-                txtPushFileSource.Text = pushFile.FileName;
+                TxtPushFileSource.Text = pushFile.FileName;
         }
 
         private void btnPushFile_Click(object sender, RoutedEventArgs e)
         {
-            if (device.PushFile(txtPushFileSource.Text, txtPushFileDestination.Text))
-                AddTextTT("Successfully pushed file.");
-            else
-                AddTextTT("Failed to push file.");
+            AddTextTt(_device.PushFile(TxtPushFileSource.Text, TxtPushFileDestination.Text)
+                ? "Successfully pushed file."
+                : "Failed to push file.");
         }
 
         private void btnBrowsePushDirectory_Click(object sender, RoutedEventArgs e)
         {
-            FolderBrowserDialog pushDirectory = new FolderBrowserDialog();
-            pushDirectory.SelectedPath = Directory.GetCurrentDirectory();
-            pushDirectory.Description = "Please select the folder to push to your device...";
-            pushDirectory.ShowNewFolderButton = true;
+            FolderBrowserDialog pushDirectory = new FolderBrowserDialog
+            {
+                SelectedPath = Directory.GetCurrentDirectory(),
+                Description = @"Please select the folder to push to your device...",
+                ShowNewFolderButton = true
+            };
             pushDirectory.ShowDialog();
             if (DialogResult.HasValue)
-                txtPushDirectorySource.Text = pushDirectory.SelectedPath;
+                TxtPushDirectorySource.Text = pushDirectory.SelectedPath;
         }
 
         private void btnPushDirectory_Click(object sender, RoutedEventArgs e)
         {
-            if (device.PushFile(txtPushDirectorySource.Text, txtPushDirectoryDestination.Text))
-                AddTextTT("Successfully pushed directory.");
-            else
-                AddTextTT("Failed to push directory.");
+            AddTextTt(_device.PushFile(TxtPushDirectorySource.Text, TxtPushDirectoryDestination.Text)
+                ? "Successfully pushed directory."
+                : "Failed to push directory.");
         }
 
         #endregion Push Button-Click Methods
@@ -497,108 +505,109 @@ namespace ADBGUI
 
         private void btnBrowsePullFile_Click(object sender, RoutedEventArgs e)
         {
-            FolderBrowserDialog pullFileDestination = new FolderBrowserDialog();
-            pullFileDestination.SelectedPath = Directory.GetCurrentDirectory();
-            pullFileDestination.Description = "Please select the destination for the file you are attempting to pull from your device...";
-            pullFileDestination.ShowNewFolderButton = true;
+            FolderBrowserDialog pullFileDestination = new FolderBrowserDialog
+            {
+                SelectedPath = Directory.GetCurrentDirectory(),
+                Description =
+                    "Please select the destination for the file you are attempting to pull from your device...",
+                ShowNewFolderButton = true
+            };
             pullFileDestination.ShowDialog();
             if (DialogResult.HasValue)
-                txtPullFileDestination.Text = pullFileDestination.SelectedPath;
+                TxtPullFileDestination.Text = pullFileDestination.SelectedPath;
         }
 
         private void btnPullFile_Click(object sender, RoutedEventArgs e)
         {
-            if (device.PullFile(txtPullFileSource.Text, txtPullFileDestination.Text))
-                AddTextTT("Successfully pulled file.");
-            else
-                AddTextTT("Failed to pull file.");
+            AddTextTt(_device.PullFile(TxtPullFileSource.Text, TxtPullFileDestination.Text)
+                ? "Successfully pulled file."
+                : "Failed to pull file.");
         }
 
         private void btnBrowsePullDirectory_Click(object sender, RoutedEventArgs e)
         {
-            FolderBrowserDialog pullDirectory = new FolderBrowserDialog();
-            pullDirectory.Description = "Please select the destination for the directory you are attempting to pull from your device...";
-            pullDirectory.SelectedPath = Directory.GetCurrentDirectory();
-            pullDirectory.ShowNewFolderButton = true;
+            FolderBrowserDialog pullDirectory = new FolderBrowserDialog
+            {
+                Description =
+                    "Please select the destination for the directory you are attempting to pull from your device...",
+                SelectedPath = Directory.GetCurrentDirectory(),
+                ShowNewFolderButton = true
+            };
             pullDirectory.ShowDialog();
             if (DialogResult.HasValue)
-                txtPullDirectoryDestination.Text = pullDirectory.SelectedPath;
+                TxtPullDirectoryDestination.Text = pullDirectory.SelectedPath;
         }
 
         private void btnPullDirectory_Click(object sender, RoutedEventArgs e)
         {
-            if (device.PullDirectory(txtPullDirectorySource.Text, txtPullDirectoryDestination.Text))
-                AddTextTT("Successfully pulled directory.");
-            else
-                AddTextTT("Failed to pull directory.");
+            AddTextTt(_device.PullDirectory(TxtPullDirectorySource.Text, TxtPullDirectoryDestination.Text)
+                ? "Successfully pulled directory."
+                : "Failed to pull directory.");
         }
 
         #endregion Pull Button-Click Methods
 
         #region Check ADB Commands
 
-        private void CheckADBCommand()
+        private void CheckAdbCommand()
         {
-            if (txtADBCommand.Text.Length > 0 && selectedDevice.ConnectionStatus != DeviceState.FASTBOOT)
-                btnADBCommand.IsEnabled = true;
+            if (TxtAdbCommand.Text.Length > 0 && _selectedDevice.ConnectionStatus != DeviceState.FASTBOOT)
+                BtnAdbCommand.IsEnabled = true;
             else
-                btnADBCommand.IsEnabled = false;
+                BtnAdbCommand.IsEnabled = false;
         }
 
-        private void CheckADBShellCommand()
+        private void CheckAdbShellCommand()
         {
-            if (txtADBShellCommand.Text.Length > 0 && selectedDevice.ConnectionStatus != DeviceState.FASTBOOT)
-                btnADBShellCommand.IsEnabled = true;
+            if (TxtAdbShellCommand.Text.Length > 0 && _selectedDevice.ConnectionStatus != DeviceState.FASTBOOT)
+                BtnAdbShellCommand.IsEnabled = true;
             else
-                btnADBShellCommand.IsEnabled = false;
+                BtnAdbShellCommand.IsEnabled = false;
         }
 
         private void CheckPushFile()
         {
-            if (txtPushFileSource.Text.Length > 0 && txtPushFileDestination.Text.Length > 0 && selectedDevice.ConnectionStatus != DeviceState.FASTBOOT)
-                btnPushFile.IsEnabled = true;
+            if (TxtPushFileSource.Text.Length > 0 && TxtPushFileDestination.Text.Length > 0 && _selectedDevice.ConnectionStatus != DeviceState.FASTBOOT)
+                BtnPushFile.IsEnabled = true;
             else
-                btnPushFile.IsEnabled = false;
+                BtnPushFile.IsEnabled = false;
         }
 
         private void CheckPushDirectory()
         {
-            if (txtPushDirectorySource.Text.Length > 0 && txtPushDirectoryDestination.Text.Length > 0 && selectedDevice.ConnectionStatus != DeviceState.FASTBOOT)
-                btnPushDirectory.IsEnabled = true;
+            if (TxtPushDirectorySource.Text.Length > 0 && TxtPushDirectoryDestination.Text.Length > 0 && _selectedDevice.ConnectionStatus != DeviceState.FASTBOOT)
+                BtnPushDirectory.IsEnabled = true;
             else
-                btnPushDirectory.IsEnabled = false;
+                BtnPushDirectory.IsEnabled = false;
         }
 
         private void CheckPullFile()
         {
-            if (txtPullFileSource.Text.Length > 0 && txtPullFileDestination.Text.Length > 0 && selectedDevice.ConnectionStatus != DeviceState.FASTBOOT)
-                btnPullFile.IsEnabled = true;
+            if (TxtPullFileSource.Text.Length > 0 && TxtPullFileDestination.Text.Length > 0 && _selectedDevice.ConnectionStatus != DeviceState.FASTBOOT)
+                BtnPullFile.IsEnabled = true;
             else
-                btnPullFile.IsEnabled = false;
+                BtnPullFile.IsEnabled = false;
         }
 
         private void CheckPullDirectory()
         {
-            if (txtPullDirectorySource.Text.Length > 0 && txtPullDirectoryDestination.Text.Length > 0 && selectedDevice.ConnectionStatus != DeviceState.FASTBOOT)
-                btnPullDirectory.IsEnabled = true;
+            if (TxtPullDirectorySource.Text.Length > 0 && TxtPullDirectoryDestination.Text.Length > 0 && _selectedDevice.ConnectionStatus != DeviceState.FASTBOOT)
+                BtnPullDirectory.IsEnabled = true;
             else
-                btnPullDirectory.IsEnabled = false;
+                BtnPullDirectory.IsEnabled = false;
         }
 
         private void CheckRemount()
         {
-            if (device.HasRoot && selectedDevice.ConnectionStatus != DeviceState.FASTBOOT)
-                btnADBRemount.IsEnabled = true;
+            if (_device.HasRoot && _selectedDevice.ConnectionStatus != DeviceState.FASTBOOT)
+                BtnAdbRemount.IsEnabled = true;
             else
-                btnADBRemount.IsEnabled = false;
+                BtnAdbRemount.IsEnabled = false;
         }
 
-        private void CheckSU()
+        private void CheckSu()
         {
-            if (selectedDevice.HasRoot)
-                chkSU.IsEnabled = true;
-            else
-                chkSU.IsEnabled = false;
+            ChkSu.IsEnabled = _selectedDevice.HasRoot;
         }
 
         #endregion Check ADB Commands
@@ -612,8 +621,8 @@ namespace ADBGUI
 
         private void CheckFlashRecovery()
         {
-            if (txtFlashRecovery.Text.Length > 0 && selectedDevice.ConnectionStatus == DeviceState.FASTBOOT && selectedDevice.CanFlashRecovery) { btnFlashRecovery.IsEnabled = true; }
-            else { btnFlashRecovery.IsEnabled = false; }
+            if (TxtFlashRecovery.Text.Length > 0 && _selectedDevice.ConnectionStatus == DeviceState.FASTBOOT && _selectedDevice.CanFlashRecovery) { BtnFlashRecovery.IsEnabled = true; }
+            else { BtnFlashRecovery.IsEnabled = false; }
         }
 
         private void txtFlashCustomZip_TextChanged(object sender, EventArgs e)
@@ -623,8 +632,8 @@ namespace ADBGUI
 
         private void CheckFlashCustomZip()
         {
-            if (txtFlashCustomZip.Text.Length > 0 && selectedDevice.ConnectionStatus == DeviceState.FASTBOOT && selectedDevice.CanFlashRecovery) { btnFlashCustomZip.IsEnabled = true; }
-            else { btnFlashCustomZip.IsEnabled = false; }
+            if (TxtFlashCustomZip.Text.Length > 0 && _selectedDevice.ConnectionStatus == DeviceState.FASTBOOT && _selectedDevice.CanFlashRecovery) { BtnFlashCustomZip.IsEnabled = true; }
+            else { BtnFlashCustomZip.IsEnabled = false; }
         }
 
         #endregion Check Fastboot Commands
@@ -634,19 +643,19 @@ namespace ADBGUI
         /// <summary>
         /// Disables all ADB buttons.
         /// </summary>
-        private void DisableADB()
+        private void DisableAdb()
         {
-            btnADBRebootSystem.IsEnabled = false;
-            btnADBRebootBootloader.IsEnabled = false;
-            btnADBRebootRecovery.IsEnabled = false;
-            btnADBCommand.IsEnabled = false;
-            btnADBShellCommand.IsEnabled = false;
-            btnADBRemount.IsEnabled = false;
-            btnPushFile.IsEnabled = false;
-            btnPushDirectory.IsEnabled = false;
-            btnPullDirectory.IsEnabled = false;
-            btnPullFile.IsEnabled = false;
-            chkSU.IsChecked = false;
+            BtnAdbRebootSystem.IsEnabled = false;
+            BtnAdbRebootBootloader.IsEnabled = false;
+            BtnAdbRebootRecovery.IsEnabled = false;
+            BtnAdbCommand.IsEnabled = false;
+            BtnAdbShellCommand.IsEnabled = false;
+            BtnAdbRemount.IsEnabled = false;
+            BtnPushFile.IsEnabled = false;
+            BtnPushDirectory.IsEnabled = false;
+            BtnPullDirectory.IsEnabled = false;
+            BtnPullFile.IsEnabled = false;
+            ChkSu.IsChecked = false;
         }
 
         /// <summary>
@@ -654,29 +663,29 @@ namespace ADBGUI
         /// </summary>
         private void DisableFastboot()
         {
-            btnFastbootRebootSystem.IsEnabled = false;
-            btnFlashRecovery.IsEnabled = false;
-            btnFastbootRebootBootloader.IsEnabled = false;
-            btnFlashCustomZip.IsEnabled = false;
+            BtnFastbootRebootSystem.IsEnabled = false;
+            BtnFlashRecovery.IsEnabled = false;
+            BtnFastbootRebootBootloader.IsEnabled = false;
+            BtnFlashCustomZip.IsEnabled = false;
         }
 
         /// <summary>
         /// Enable ADB buttons.
         /// </summary>
-        private void EnableADB()
+        private void EnableAdb()
         {
-            btnADBRebootSystem.IsEnabled = true;
-            btnADBRebootBootloader.IsEnabled = true;
-            btnADBRebootRecovery.IsEnabled = true;
+            BtnAdbRebootSystem.IsEnabled = true;
+            BtnAdbRebootBootloader.IsEnabled = true;
+            BtnAdbRebootRecovery.IsEnabled = true;
 
-            CheckADBCommand();
-            CheckADBShellCommand();
+            CheckAdbCommand();
+            CheckAdbShellCommand();
             CheckPushFile();
             CheckPushDirectory();
             CheckPullFile();
             CheckPullDirectory();
             CheckRemount();
-            CheckSU();
+            CheckSu();
         }
 
         /// <summary>
@@ -684,8 +693,8 @@ namespace ADBGUI
         /// </summary>
         private void EnableFastboot()
         {
-            btnFastbootRebootSystem.IsEnabled = true;
-            btnFastbootRebootBootloader.IsEnabled = true;
+            BtnFastbootRebootSystem.IsEnabled = true;
+            BtnFastbootRebootBootloader.IsEnabled = true;
             CheckCustomFastboot();
             CheckFlashCustomZip();
             CheckFlashRecovery();
@@ -696,12 +705,9 @@ namespace ADBGUI
         /// </summary>
         private void CheckCustomFastboot()
         {
-            if (CheckSelectedDevice() && selectedDevice.ConnectionStatus == DeviceState.FASTBOOT)
+            if (CheckSelectedDevice() && _selectedDevice.ConnectionStatus == DeviceState.FASTBOOT)
             {
-                if (txtFastbootCommand.Text.Length > 0)
-                    btnFastbootCommand.IsEnabled = true;
-                else
-                    btnFastbootCommand.IsEnabled = false;
+                BtnFastbootCommand.IsEnabled = TxtFastbootCommand.Text.Length > 0;
             }
         }
 
@@ -711,7 +717,7 @@ namespace ADBGUI
         /// <returns>True if valid selection</returns>
         private bool CheckSelectedDevice()
         {
-            if (lstDevices.SelectedIndex >= 0)
+            if (LstDevices.SelectedIndex >= 0)
                 return true;
 
             return false;
@@ -732,26 +738,30 @@ namespace ADBGUI
             bool success = false;
             try
             {
-                device = android.GetConnectedDevice(serial); if (device.State != DeviceState.FASTBOOT)
+                _device = _android.GetConnectedDevice(serial);
+                if (_device.State != DeviceState.FASTBOOT)
                 {
-                    AdbCommand shellCmd = Adb.FormAdbShellCommand(device, false, "cat", "/system/build.prop | grep product.model");
+                    AdbCommand shellCmd = Adb.FormAdbShellCommand(_device, false, "cat", "/system/build.prop | grep product.model");
                     string line = Adb.ExecuteAdbCommand(shellCmd);
-                    line = line.Substring(line.IndexOf("=") + 1).Trim();
+                    line = line.Substring(line.IndexOf("=", StringComparison.Ordinal) + 1).Trim();
                     StringReader s = new StringReader(line);
                     modelNum = s.ReadLine();
                     success = true;
                 }
                 else
                 {
-                    FastbootCommand fbCmd = Fastboot.FormFastbootCommand("-s " + device.SerialNumber + " getvar all");
+                    FastbootCommand fbCmd = Fastboot.FormFastbootCommand($"-s {_device.SerialNumber} getvar all");
                     modelNum = GetFastbootModelNum(Fastboot.ExecuteFastbootCommand(fbCmd));
                     modelNum = modelNum.Substring(modelNum.IndexOf(": ") + 2).Trim();
+                    success = true;
                 }
             }
-            catch (Exception)
-            { }
+            catch (Exception ex)
+            {
+                AppState.DisplayNotification(ex.Message, "ADB GUI", this);
+            }
 
-            displayDeviceInfo(modelNum);
+            DisplayDeviceInfo(modelNum);
             return success;
         }
 
@@ -760,16 +770,15 @@ namespace ADBGUI
         /// </summary>
         /// <param name="parseString">String to be parsed</param>
         /// <returns>Model number</returns>
-        private string GetFastbootModelNum(string parseString)
+        private static string GetFastbootModelNum(string parseString)
         {
             StringReader s = new StringReader(parseString);
-            string line;
 
             while (s.Peek() != -1)
             {
-                line = s.ReadLine();
+                string line = s.ReadLine();
 
-                if (line.Contains("product"))
+                if (line != null && line.Contains("product"))
                     return line;
             }
 
@@ -783,16 +792,16 @@ namespace ADBGUI
         /// <returns>True if device is connected</returns>
         private bool IsDeviceConnected(string serial)
         {
-            return android.IsDeviceConnected(serial);
+            return _android.IsDeviceConnected(serial);
         }
 
         #endregion Device Information Methods
 
         #region Window-Manipulation Methods
 
-        private async Task<Boolean> loadTabbed()
+        private async Task<Boolean> LoadTabbed()
         {
-            await Task.Factory.StartNew(() => android = AndroidController.Instance);
+            await Task.Factory.StartNew(() => _android = AndroidController.Instance);
             UpdateDeviceList();
             return true;
         }
@@ -804,45 +813,52 @@ namespace ADBGUI
 
         private void lstDevices_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
-            if (lstDevices.SelectedIndex >= 0)
+            if (LstDevices.SelectedIndex >= 0)
             {
-                if (android.IsDeviceConnected(connectedDevices[lstDevices.SelectedIndex].SerialNumber))
+                if (_android.IsDeviceConnected(_connectedDevices[LstDevices.SelectedIndex].SerialNumber))
                 {
-                    string selection = lstDevices.SelectedItem.ToString();
+                    string selection = LstDevices.SelectedItem.ToString();
                     selection = selection.Substring(0, selection.IndexOf(" "));
-                    GetModelNum(selection);
-
-                    if (lstDevices.SelectedItem.ToString().Contains("FASTBOOT")) //disable ADB
+                    if (GetModelNum(selection))
                     {
-                        DisableADB();
-                        EnableFastboot();
-                    }
-                    else    //disable Fastboot
-                    {
-                        DisableFastboot();
-                        EnableADB();
+                        if (LstDevices.SelectedItem.ToString().Contains("FASTBOOT")) //disable ADB
+                        {
+                            DisableAdb();
+                            EnableFastboot();
+                        }
+                        else //disable Fastboot
+                        {
+                            DisableFastboot();
+                            EnableAdb();
+                        }
                     }
                 }
                 else
                 {
-                    DisableADB();
+                    DisableAdb();
                     DisableFastboot();
                 }
             }
             else
             {
-                selectedDevice = new ConnectedDevice();
-                DataContext = selectedDevice.DeviceInfo;
+                _selectedDevice = new ConnectedDevice();
+
+                DataContext = _selectedDevice.DeviceInfo;
             }
 
-            imgDevice.Source = selectedDevice.DeviceInfo.Image;
+            ImgDevice.Source = _selectedDevice.DeviceInfo.Image;
+        }
+
+        private void txtADBShellCommand_GotFocus(object sender, RoutedEventArgs e)
+        {
+            TxtAdbShellCommand.SelectAll();
         }
 
         private async void windowMain_Loaded(object sender, RoutedEventArgs e)
         {
-            await loadTabbed();
-            AppState.LoadAll();
-            DataContext = selectedDevice.DeviceInfo;
+            await LoadTabbed();
+            await AppState.LoadAll();
+            DataContext = _selectedDevice.DeviceInfo;
         }
 
         #endregion Window-Manipulation Methods

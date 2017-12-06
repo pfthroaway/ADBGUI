@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.ComponentModel;
 using System.Windows.Media.Imaging;
 
-namespace ADBGUI
+namespace ADBGUI.Classes.Devices
 {
     internal class SupportedDevice : INotifyPropertyChanged
     {
@@ -26,49 +26,49 @@ namespace ADBGUI
 
         public string ModelName
         {
-            get { return _modelName; }
+            get => _modelName;
             set { _modelName = value; OnPropertyChanged("ModelName"); }
         }
 
         public List<string> Codenames
         {
-            get { return _codenames; }
+            get => _codenames;
             set { _codenames = value; OnPropertyChanged("Codenames"); }
         }
 
         public string ModelNumber
         {
-            get { return _modelNumber; }
+            get => _modelNumber;
             set { _modelNumber = value; OnPropertyChanged("ModelNumber"); }
         }
 
         public string ManufacturerName
         {
-            get { return _manufacturerName; }
+            get => _manufacturerName;
             set { _manufacturerName = value; OnPropertyChanged("ManufacturerName"); }
         }
 
         public string Resolution
         {
-            get { return _resolution; }
+            get => _resolution;
             set { _resolution = value; OnPropertyChanged("Resolution"); }
         }
 
         public string SplashBlock
         {
-            get { return _splashBlock; }
+            get => _splashBlock;
             set { _splashBlock = value; OnPropertyChanged("SplashBlock"); }
         }
 
         public string RAM
         {
-            get { return _ram; }
+            get => _ram;
             set { _ram = value; OnPropertyChanged("RAM"); }
         }
 
         public string ImageLocation
         {
-            get { return _imageLocation; }
+            get => _imageLocation;
             set
             {
                 _imageLocation = value;
@@ -85,7 +85,7 @@ namespace ADBGUI
 
         public BitmapImage Image
         {
-            get { return _image; }
+            get => _image;
             set { _image = value; OnPropertyChanged("Image"); }
         }
 
@@ -121,6 +121,7 @@ namespace ADBGUI
         /// <param name="manufacturerName">Manufacturer Name</param>
         /// <param name="splashBlock">Splash Block</param>
         /// <param name="resolution">Resolution</param>
+        /// <param name="ram">RAM</param>
         /// <param name="imageLocation">Image</param>
         /// <remarks></remarks>
         public SupportedDevice(string modelName, List<string> codenames, string modelNumber, string manufacturerName, string splashBlock, string resolution, string ram, string imageLocation)

@@ -1,7 +1,7 @@
 ﻿using RegawMOD.Android;
 using System.ComponentModel;
 
-namespace ADBGUI
+namespace ADBGUI.Classes.Devices
 {
     internal class ConnectedDevice : INotifyPropertyChanged
     {
@@ -25,31 +25,31 @@ namespace ADBGUI
 
         public string SerialNumber
         {
-            get { return _serialNumber; }
+            get => _serialNumber;
             set { _serialNumber = value; OnPropertyChanged("SerialNumber"); }
         }
 
         public DeviceState ConnectionStatus
         {
-            get { return _connectionStatus; }
+            get => _connectionStatus;
             set { _connectionStatus = value; OnPropertyChanged("ConnectionStatus"); }
         }
 
         public bool HasRoot
         {
-            get { return _hasRoot; }
+            get => _hasRoot;
             set { _hasRoot = value; OnPropertyChanged("HasRoot"); }
         }
 
         public bool CanFlashRecovery
         {
-            get { return _canFlashRecovery; }
+            get => _canFlashRecovery;
             set { _canFlashRecovery = value; OnPropertyChanged("CanFlashRecovery"); }
         }
 
         internal SupportedDevice DeviceInfo
         {
-            get { return _deviceInfo; }
+            get => _deviceInfo;
             set { _deviceInfo = value; OnPropertyChanged("DeviceInfo"); }
         }
 
@@ -74,9 +74,6 @@ namespace ADBGUI
         /// </summary>
         /// <param name="serialNumber">Serial Number</param>
         /// <param name="connectionStatus">Connection Status</param>
-        /// <param name="hasRoot">Root Status</param>
-        /// <param name="canFlashRecovery">Can Flash Recovery</param>
-        /// <param name="deviceInfo">Device Information</param>
         /// <remarks></remarks>
         public ConnectedDevice(string serialNumber, DeviceState connectionStatus)
         {
